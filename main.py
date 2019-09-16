@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Question 1 - random events
 def getListOfRands(type, num):
@@ -78,10 +79,23 @@ def simulate():
         eventsProcessed += 1
         print("Events complete: {0}", eventsProcessed, end="\r")
 
-    print(queueSize)
+    return queueSize
 
 def main():
-    simulate()
+    # get simulation data
+    results = simulate()
+    print(results)
+    # pull idle data from results
+    result2 = [(y, x) for x, y in results]
+    plt.scatter(*zip(*result2))
+    plt.show()
+
+    # plot the results
+    # plt.plot([1, 2, 3, 4])
+    # plt.ylabel('some numbers')
+    # plt.show()
+
+
 
 if __name__ == "__main__":
     main()
