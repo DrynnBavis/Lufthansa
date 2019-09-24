@@ -7,7 +7,7 @@ def getListOfRands(type, num):
     myList = []
     for x in range (num):
         ran = random.random()
-        lam = 75
+        lam = 75 # rate parameter
         val = -(1/lam)*np.log(1 - ran)
         myList.append((type, val))
     return myList
@@ -28,9 +28,9 @@ def buildEvents():
 # Question 3 - Simulation
 def simulate():
     lam = 75
-    L = 2000 #bits
-    C = 1000000 #1Mbps
-    row = L * lam / C
+    L = 2000 # average packet length (bits)
+    C = 1000000 # transmission rate (1Mbits/s)
+    rho = L * lam / C # or just hard code this to be 0.95? This comes to be 0.15
     events = buildEvents()
     departSize = 0
     queueSize = []
@@ -40,20 +40,21 @@ def simulate():
     # begin simulation
     while(events):
         e = events.pop(0)
+        print("popped: ", e)
         if (e[0] == "a"):
             # arrival event
             if departSize or activeDeparture:
                 departSize += 1
-                #print("added d to q, size of events: {0}", len(events))
             else: 
                 # empty queue, we can service it now
-                xTime = getRandSize(75) / C
+                xTime = getRandSize(L) / C
                 dTime = e[1] + xTime
                 count = 0
-                while(events[count][1] < dTime):
-                    count += 1
-                    if count == len(events):
-                        break
+                if (len(events) > 0):
+                    while(events[count][1] < dTime):
+                        count += 1
+                        if count + 1 >= len(events):
+                            break
                 events.insert(count, ("d", dTime))
                 activeDeparture = True
                 
@@ -64,38 +65,29 @@ def simulate():
             # departure event
             if departSize:
                 departSize -= 1
-                xTime = getRandSize(75) / C
+                xTime = getRandSize(L) / C
                 dTime = e[1] + xTime
                 count = 0
-                while(events[count][1] < dTime):
-                    count += 1
-                    if count == len(events):
-                        break
+                if (len(events) > 0):
+                    while(events[count][1] < dTime):
+                        count += 1
+                        if count + 1 >= len(events):
+                            break
                 events.insert(count, ("d", dTime))
                 activeDeparture = True
-                #print("removed d from q, size of events: {0}", len(events))
             else:
                 activeDeparture = False
         eventsProcessed += 1
-        print("Events complete: {0}", eventsProcessed, end="\r")
 
     return queueSize
 
 def main():
     # get simulation data
     results = simulate()
-    print(results)
     # pull idle data from results
     result2 = [(y, x) for x, y in results]
     plt.scatter(*zip(*result2))
     plt.show()
-
-    # plot the results
-    # plt.plot([1, 2, 3, 4])
-    # plt.ylabel('some numbers')
-    # plt.show()
-
-
 
 if __name__ == "__main__":
     main()
