@@ -47,7 +47,7 @@ def simulate(rho):
                 # queue next departure event
                 departures_waiting -= 1
                 xTime = get_exp_rand(1/L) / C
-                departure_time = e[0] + xTime
+                departure_time += xTime
             else:
                 # empty queue, set to idle
                 departure_time = 100000
@@ -56,13 +56,11 @@ def simulate(rho):
         # now handle event
         if (e[1] == 'a'):
             # arrival event
-            if departures_waiting > 0 or departure_time < 100000:
-                # currently servicing a departure, add to queue
-                departures_waiting += 1
-            else: 
-                # empty queue, we can service it now
+            departures_waiting += 1
+            # do we have any departures yet?
+            if departure_time == 100000:
                 xTime = get_exp_rand(1/L) / C
-                departure_time = e[0] + xTime      
+                departure_time = e[0] + xTime
         else:
             # observation event
             departures_waiting_log.append(departures_waiting)
