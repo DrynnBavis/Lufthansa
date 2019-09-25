@@ -1,7 +1,7 @@
 import random
 import numpy as np
-import matplotlib.pyplot as plt
 from queue import Queue
+import csv
 
 # Question 1 - random number generator
 def get_exp_rand(rate_param):
@@ -69,19 +69,19 @@ def simulate(rho):
 
 def main():
     # get simulation data for rho = 0.25 -> 0.95
-    graph_data = []
+    result_data = []
     for i in range(8):
         rho = 0.25 + i*0.10
         print("Starting rho = {0}".format(rho))
         results = simulate(rho)
         average_waiting_events = sum(results)/len(results)
         average_idle_proportion = results.count(0)/len(results)
-        graph_data.append((rho, average_waiting_events, average_idle_proportion))
+        result_data.append((rho, average_waiting_events, average_idle_proportion))
         print("Complete. Avg waiting departures: {0}, Idle proportion: {1}".format(average_waiting_events, average_idle_proportion))
 
-    # plot it
-    plt.scatter(*zip(*graph_data))
-    plt.show()
+    # done simulations, print results
+    with open('SimulationResults.csv','w') as out:
+        csv.writer(out).writerows(result_data)
 
 if __name__ == "__main__":
     main()
