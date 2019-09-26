@@ -21,7 +21,7 @@ def build_events(type, lam):
     return events
 
 
-# Main Questions ############################################################**
+# Main Questions ##############################################################
 
 # Question 1 Demo
 def question_one():
@@ -104,7 +104,7 @@ def question_four():
     average_waiting_events = sum(results)/len(results)
     average_idle_proportion = results.count(0)/len(results)
     print("Average waiting events: {0}".format(average_waiting_events))
-    print("Average idle proportion: {1}".format(average_idle_proportion))
+    print("Average idle proportion: {0}".format(average_idle_proportion))
 
 # Question 5 - M/M/1/K Simulation Construction
 def simulate_k(rho, k):
