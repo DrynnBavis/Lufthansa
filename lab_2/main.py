@@ -5,8 +5,8 @@ import csv
 
 # Given Variables
 C = 3 * 10**8 #[m/sec] speed of light
-D = 10 #[metres]
 S = (2/3) * C #[m/sec] propagation speed
+D = 10 #[metres]
 R = 1 * 10**6 #[bits/sec]
 L = 1500 #[bits]
 K_MAX = 10 #max number of retransmit attempts
@@ -51,22 +51,26 @@ def simulate_csmacd(N, A, persistent):
     transmitted_packets = 0
     dropped_packets = 0
     retransmit_attempts = 0
+    nodes_remaining = N
 
     # Simulate
-    while(True):
+    while(nodes_remaining):
         # find the first node we'll service
-        node_idx = 0
-        current_time = 1000
+        node_idx = -1
+        current_time = 100000
         for i, q in enumerate(arrival_queues):
-            if len(q) and wait_dict[i] + q[0] < current_time:
+            if len(q) == 0:
+                continue
+            elif wait_dict[i] + q[0] < current_time:
+                #print(wait_dict[i], q[0], current_time)
                 node_idx = i
-                current_time = q[0]
+                current_time = wait_dict[i] + q[0]
 
         # detect collisions for this transmission
         collision = False
         for i in range(N):
-            if i == node_idx: # skip self node
-                continue
+            if i == node_idx or len(arrival_queues[i]) == 0:
+                continue # skip self and empty queues
             hops = abs(node_idx-i)
             t_prop = hops * D / S
             t_trans = L / R
@@ -76,7 +80,7 @@ def simulate_csmacd(N, A, persistent):
                 collision = True
                 k_dict[i] += 1
                 if k_dict[i] <= K_MAX:
-                    backoff_time = random.uniform(0, 2^k_dict[i] - 1) * 512 / R
+                    backoff_time = random.uniform(0, 2**k_dict[i] - 1) * 512 / R
                     wait_dict[i] += backoff_time
                     retransmit_attempts += 1
                 else:
@@ -92,11 +96,10 @@ def simulate_csmacd(N, A, persistent):
             # Case 3: node i arrival is after the transmission, irrelevant
             else:
                 continue
-        
         if collision:
             k_dict[node_idx] += 1
             if k_dict[node_idx] <= K_MAX:
-                backoff_time = random.uniform(0, 2^k_dict[node_idx] - 1) * 512 / R
+                backoff_time = random.uniform(0, 2**k_dict[node_idx] - 1) * 512 / R
                 wait_dict[node_idx] += backoff_time
                 retransmit_attempts += 1
             else:
@@ -106,10 +109,9 @@ def simulate_csmacd(N, A, persistent):
         else:
             arrival_queues[node_idx].popleft() # transmitted it, remove from queue
             transmitted_packets += 1
-
-
-
-            
+        
+        if len(arrival_queues[node_idx]) == 0:
+            nodes_remaining -= 1            
 
 
 
