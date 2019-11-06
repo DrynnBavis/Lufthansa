@@ -151,6 +151,7 @@ def question_one():
     plt.ylabel('Efficiency')
     plt.plot(N_list, data[5], 'r', label="K = 5")
     plt.plot(N_list, data[12], 'b', label="K = 12")
+    legend = plt.legend(loc='upper right', shadow=True)
     plt.show()
 
 
