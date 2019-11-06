@@ -65,50 +65,47 @@ def simulate_csmacd(N, A, persistent):
     packets_remaining   = 0
     for queue in arrival_queues:
         packets_remaining += len(queue) 
-    print(packets_remaining)
 
     # Simulate
-    while(packets_remaining):
+    within_simulation_time = True
+    while(within_simulation_time):
         # find the first node we'll service
-        node_idx = get_first_event_idx(arrival_queues)
-        current_time = arrival_queues[node_idx][0]
+        sender_idx = get_first_event_idx(arrival_queues)
+        current_time = arrival_queues[sender_idx][0]
+        within_simulation_time = current_time < 1000
 
         # detect collisions for this transmission
         collisions = []
         for i in range(N):
-            if i == node_idx or len(arrival_queues[i]) == 0:
+            if i == sender_idx or len(arrival_queues[i]) == 0:
                 continue # skip self and empty queues
-            hops = abs(node_idx-i)
+            hops = abs(sender_idx-i)
             t_prop = hops * D / S
             t_trans = L / R
             
             # Case 1: node i arrival occurs before bus is sensed to be busy -> collision
-            if arrival_queues[i][0] <= current_time + t_prop:
+            if arrival_queues[i][0] < current_time + t_prop:
                 collisions.append(i)
                     
             # Case 2: bus is sensed to be busy -> add wait time to avoid collision
-            elif arrival_queues[i][0] <= current_time + t_prop + t_trans:
+            elif arrival_queues[i][0] < current_time + t_prop + t_trans:
                 j = 0
                 t_wait = current_time + t_prop + t_trans
                 while (j < len(arrival_queues[i]) and arrival_queues[i][j] < t_wait):
                     arrival_queues[i][j] = t_wait
                     j += 1
 
-            # Case 3: node i arrival is after the transmission, irrelevant
-            else:
-                continue
-
         # Handle collisions if they occured, else transmit was successful!
         if collisions:
-            collisions.append(node_idx) # don't forget to add the transmitting node
+            collisions.append(sender_idx) # don't forget to add the transmitting node
             for collision_idx in collisions:
-                hops = abs(node_idx-collision_idx)
-                t_prop = hops * D / S
                 k_dict[collision_idx] += 1
                 if k_dict[collision_idx] <= K_MAX:
                     backoff_time = random.randint(1, (2**k_dict[collision_idx]) - 1) * 512 / R
+                    hops = abs(sender_idx-collision_idx)
+                    t_prop = hops * D / S
                     j = 0
-                    t_wait = current_time + t_prop + backoff_time
+                    t_wait = arrival_queues[collision_idx][0] + backoff_time
                     while (j < len(arrival_queues[collision_idx]) and arrival_queues[collision_idx][j] < t_wait):
                         arrival_queues[collision_idx][j] = t_wait
                         j += 1
@@ -119,20 +116,17 @@ def simulate_csmacd(N, A, persistent):
                     dropped_packets += 1
                     packets_remaining -= 1
         else:
-            k_dict[node_idx] = 0
-            arrival_queues[node_idx].popleft() # transmitted it, remove from queue
+            k_dict[sender_idx] = 0
+            arrival_queues[sender_idx].popleft() # transmitted it, remove from queue
             transmitted_packets += 1
             packets_remaining -= 1
-
-        # just some reporting of progress
-        if packets_remaining % 100000 == 0:
-            print(packets_remaining)
       
     # Print results
     total_transmits = transmitted_packets + dropped_packets + retransmit_attempts
     efficiency = transmitted_packets / total_transmits
-    print("Efficiency = ", efficiency)
-    print(transmitted_packets, dropped_packets)
+    throughput = (transmitted_packets * L / 1000)/10**6
+    print("Efficiency =", efficiency)
+    print("Throughput =", throughput)
     return efficiency
 
 
@@ -155,7 +149,8 @@ def question_one():
     
     plt.xlabel('Nodes in network (N)')
     plt.ylabel('Efficiency')
-    plt.plot(data)
+    plt.plot(N_list, data[5], 'r', label="K = 5")
+    plt.plot(N_list, data[12], 'b', label="K = 12")
     plt.show()
 
 
