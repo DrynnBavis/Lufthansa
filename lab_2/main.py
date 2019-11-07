@@ -45,7 +45,7 @@ def get_first_event_idx(time_queues):
 # Question 1 Demo
 def simulate_csmacd(N, A, persistent):
     print("")
-    print("Simulating CSMA/CD for N = {0}, A = {1}".format(N, A))
+    print("Simulating CSMA/CD for N = {0}, A = {1}, Persistent = {2}".format(N, A, persistent))
 
     # Setup the arrival queues
     packet_arrivals = [build_events(A) for i in range(N)]
@@ -66,7 +66,6 @@ def simulate_csmacd(N, A, persistent):
     dropped_packets   = 0
     sent_packets      = 0
     current_time      = 0
-    count = 0
 
     # Simulate
     while(current_time < SIMULATION_TIME):
@@ -90,8 +89,8 @@ def simulate_csmacd(N, A, persistent):
                 # Case 2: bus is sensed to be busy -> add wait time to avoid collision
                 elif arrival_queues[i][0] <= current_time + t_prop + t_trans:
                     if persistent:
-                        t_wait = current_time + t_prop + t_trans
-                        arrival_queues[i][0] = t_wait
+                        # simulate tight-polling by setting new time to the end of current transmission
+                        arrival_queues[i][0] = current_time + t_prop + t_trans
                     if not persistent:
                         while len( arrival_queues[i]) and arrival_queues[i][0] <= current_time + t_prop + t_trans:
                             sensing_k[i] += 1
@@ -117,10 +116,11 @@ def simulate_csmacd(N, A, persistent):
                     t_backoff = random.randint(1, 2**collision_k[collision_idx] - 1) * (512 / R)
                     arrival_queues[collision_idx][0] += t_backoff
                 else:
-                    t_dropped = arrival_queues[collision_idx].popleft() #drop this packet
+                    t_dropped = arrival_queues[collision_idx].popleft()
                     sensing_k[collision_idx] = 0
                     collision_k[collision_idx] = 0
                     dropped_packets += 1
+                     # if the next node in the queue arrives before current time, adjust it
                     if len(arrival_queues[collision_idx]) and arrival_queues[collision_idx][0] < t_dropped:
                         arrival_queues[collision_idx][0] = t_dropped
 
@@ -129,55 +129,82 @@ def simulate_csmacd(N, A, persistent):
             sensing_k[i] = 0
             collision_k[i] = 0
             sent_packets += 1
-
+            # if the next node in the queue arrives before we're done transmitting, adjust it
             if len(arrival_queues[sender_idx]) and arrival_queues[sender_idx][0] < t_arrival + t_trans:
                 arrival_queues[sender_idx][0] = t_arrival + t_trans
         
-        # if current_time > count * 100:
-        #     through = (sent_packets * L / current_time)/R
-        #     print(current_time, through)
-        #     count += 1
       
     # Print results
     efficiency = sent_packets / transmit_attempts
     throughput = (sent_packets * L / SIMULATION_TIME)/R
     print("Efficiency =", efficiency)
     print("Throughput =", throughput)
-    return efficiency
-
-
-
-
-    
-    
-
-
-def question_one():
-    A_list = [7, 10, 20] # Poisson packet arrival rate
-    N_list = [20, 40, 60, 80, 100] # num nodes on LAN
-    # A_list = [12, 5] # [7, 10, 20] # Poisson packet arrival rate
-    # N_list = [100] # num nodes on LAN
-
-    # Fetch data from simulations
-    data = {}
-    for A in A_list:
-        data[A] = []
-        for N in N_list:
-            results = (simulate_csmacd(N, A, False))
-            data[A].append(results)
-    
-    # Plotting the data
-    plt.xlabel('Nodes in network (N)')
-    plt.ylabel('Efficiency')
-    plt.plot(N_list, data[7], 'r', label="K = 7")
-    plt.plot(N_list, data[10], 'b', label="K = 10")
-    plt.plot(N_list, data[20], 'g', label="K = 20")
-    plt.legend(loc='upper right', shadow=True)
-    plt.show()
-
+    return (efficiency,throughput)
 
 def main():
-    question_one()
+    A_list = [7, 10, 20] # Poisson packet arrival rate
+    N_list = [20, 40, 60, 80, 100] # num nodes on LAN
+
+    # Fetch data from simulations
+    persis_eff = {}
+    persis_thru = {}
+    nonper_eff = {}
+    nonper_thru = {}
+
+    # Simulate some data
+    for A in A_list:
+        persis_eff[A] = []
+        persis_thru[A] = []
+        nonper_eff[A] = []
+        nonper_thru[A] = []
+
+        for N in N_list:
+            eff, thru = simulate_csmacd(N, A, True)
+            persis_eff[A].append(eff)
+            persis_thru[A].append(thru)
+            eff, thru = simulate_csmacd(N, A, False)
+            nonper_eff[A].append(eff)
+            nonper_thru[A].append(thru)
+
+    # Plotting the data
+    eff_styles = ['r', 'b', 'g']
+    thru_styles = ['r--', 'b--', 'g--']
+
+    plt.title('Efficiency of Persistent Medium Sensing', fontdict=None, loc='center')
+    plt.xlabel('Nodes in network (N)')
+    plt.ylabel('Efficiency')
+    for idx, A in enumerate(A_list):
+        plt.plot(N_list, persis_eff[A], eff_styles[idx], label="A = {0}".format(A))
+    plt.legend(loc='upper right', shadow=False)
+    plt.grid(True)
+    plt.show()
+
+    plt.title('Throughput of Persistent Medium Sensing', fontdict=None, loc='center')
+    plt.xlabel('Nodes in network (N)')
+    plt.ylabel('Throughput [Mbps]')
+    for idx, A in enumerate(A_list):
+        plt.plot(N_list, persis_thru[A], thru_styles[idx], label="A = {0}".format(A))
+    plt.legend(loc='upper right', shadow=False)
+    plt.grid(True)
+    plt.show()
+
+    plt.title('Efficiency of Non-Persistent Medium Sensing', fontdict=None, loc='center')
+    plt.xlabel('Nodes in network (N)')
+    plt.ylabel('Efficiency')
+    for idx, A in enumerate(A_list):
+        plt.plot(N_list, nonper_eff[A], eff_styles[idx], label="A = {0}".format(A))
+    plt.legend(loc='upper right', shadow=False)
+    plt.grid(True)
+    plt.show()
+
+    plt.title('Throughput of Non-Persistent Medium Sensing', fontdict=None, loc='center')
+    plt.xlabel('Nodes in network (N)')
+    plt.ylabel('Throughput [Mbps]')
+    for idx, A in enumerate(A_list):
+        plt.plot(N_list, nonper_thru[A], thru_styles[idx], label="A = {0}".format(A))
+    plt.legend(loc='upper right', shadow=False)
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
     main()
