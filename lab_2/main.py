@@ -72,6 +72,7 @@ def simulate_csmacd(N, A, persistent):
         # Find the first node we'll service
         sender_idx = get_first_event_idx(arrival_queues)
         current_time = arrival_queues[sender_idx][0]
+        t_first_bit_sent = current_time
         transmit_attempts += 1
 
         # Detect collisions for this transmission
@@ -80,29 +81,41 @@ def simulate_csmacd(N, A, persistent):
             if i != sender_idx and len(arrival_queues[i]): #skip self and empty queues
                 hops = abs(sender_idx-i)
                 t_prop = hops * D / S
+                t_first_bit_recv = t_first_bit_sent + t_prop
+                t_last_bit_recv = t_first_bit_recv + t_trans 
 
                 # Case 1: node i arrival occurs before bus is sensed to be busy -> collision
-                if arrival_queues[i][0] <= current_time + t_prop:
+                if arrival_queues[i][0] <= t_first_bit_recv:
                     collisions.append(i)
                     transmit_attempts += 1
                         
                 # Case 2: bus is sensed to be busy -> add wait time to avoid collision
-                elif arrival_queues[i][0] <= current_time + t_prop + t_trans:
+                elif arrival_queues[i][0] <= t_last_bit_recv:
                     if persistent:
-                        # simulate tight-polling by setting new time to the end of current transmission
-                        arrival_queues[i][0] = current_time + t_prop + t_trans
+                        # In the real word, this would involve tight polling the medium line to begin
+                        # transmitting as soon as possible. Instead, since we know when the line will be
+                        # "free" in this simulation, we can just rescheule the node to that time.
+                        arrival_queues[i][0] = t_last_bit_recv
                     if not persistent:
-                        while len( arrival_queues[i]) and arrival_queues[i][0] <= current_time + t_prop + t_trans:
+                        # In the non-persistent case, we need to back off using exponential backoff,
+                        # but there's some risk here. At earlier low values, we can backoff for shorter
+                        # period than the transmission time and have an invalid rescheduled arrival. To
+                        # combat this, a while loop is used to ensure we've rescheduled past the sender's
+                        # transmission time.
+                        while len( arrival_queues[i]) and arrival_queues[i][0] < t_last_bit_recv:
                             sensing_k[i] += 1
                             if sensing_k[i] <= K_MAX:
                                 t_backoff = random.randint(1, 2**sensing_k[i] - 1) * (512 / R)
                                 arrival_queues[i][0] += t_backoff
                             else:
-                                t_dropped = arrival_queues[i].popleft() #drop this packet
+                                # We've backed off too many times, drop the packet
+                                t_dropped = arrival_queues[i].popleft()
                                 sensing_k[i] = 0
                                 collision_k[i] = 0
                                 dropped_packets += 1
                                 transmit_attempts += 1
+                                # now that the packet has been dropped we need to correct the time of the following
+                                # packet arrival in the queue to the end of this transmission (earliest logically possible)
                                 if len(arrival_queues[i]) and arrival_queues[i][0] < t_dropped:
                                     arrival_queues[i][0] = t_dropped
                         
