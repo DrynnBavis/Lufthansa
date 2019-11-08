@@ -1,7 +1,6 @@
 import random
 import numpy as np
 from collections import deque
-import csv
 import matplotlib.pyplot as plt
 
 # Given Variables
@@ -33,7 +32,7 @@ def build_events(lam):
 
 def get_first_event_idx(time_queues):
     node_idx = -1
-    earliest_time = 1000000000
+    earliest_time = SIMULATION_TIME + 1
     for i, q in enumerate(time_queues):
         if len(q) != 0 and q[0] < earliest_time:
             node_idx = i
@@ -50,7 +49,7 @@ def simulate_csmacd(N, A, persistent):
     # Setup the arrival queues
     packet_arrivals = [build_events(A) for i in range(N)]
     arrival_queues = []
-    for arrival_list in packet_arrivals: #just converting lists to queues for performance
+    for arrival_list in packet_arrivals:
         event_queue = deque()
         event_queue.extend(arrival_list)
         arrival_queues.append(event_queue)
@@ -104,45 +103,51 @@ def simulate_csmacd(N, A, persistent):
                         # transmission time.
                         while len( arrival_queues[i]) and arrival_queues[i][0] < t_last_bit_recv:
                             sensing_k[i] += 1
-                            if sensing_k[i] <= K_MAX:
-                                t_backoff = random.randint(1, 2**sensing_k[i] - 1) * (512 / R)
-                                arrival_queues[i][0] += t_backoff
-                            else:
-                                # We've backed off too many times, drop the packet
-                                t_dropped = arrival_queues[i].popleft()
+                            if sensing_k[i] > K_MAX:
+                                # We've backed off too many times, drop this packet
+                                arrival_queues[i].popleft()
                                 sensing_k[i] = 0
                                 collision_k[i] = 0
                                 dropped_packets += 1
                                 transmit_attempts += 1
-                                # now that the packet has been dropped we need to correct the time of the following
-                                # packet arrival in the queue to the end of this transmission (earliest logically possible)
-                                if len(arrival_queues[i]) and arrival_queues[i][0] < t_dropped:
-                                    arrival_queues[i][0] = t_dropped
-                        
+                                # correct next arrival time if it's invalid
+                                if len(arrival_queues[i]) and arrival_queues[i][0] < t_last_bit_recv:
+                                    arrival_queues[i][0] = t_last_bit_recv
+                            else:
+                                t_backoff = random.randint(1, 2**sensing_k[i] - 1) * (512 / R)
+                                arrival_queues[i][0] += t_backoff
+                
+                # Case 3: this node's packet arrives later than we care about for now -> skip
+                else:
+                    continue
 
         # Handle collisions if they occured, 
         if collisions:
-            collisions.append(sender_idx) # don't forget to add the transmitting node
+            # don't forget to add the transmitting node!
+            collisions.append(sender_idx)
             for collision_idx in collisions:
                 collision_k[collision_idx] += 1
-                if collision_k[collision_idx] <= K_MAX:
-                    t_backoff = random.randint(1, 2**collision_k[collision_idx] - 1) * (512 / R)
-                    arrival_queues[collision_idx][0] += t_backoff
-                else:
-                    t_dropped = arrival_queues[collision_idx].popleft()
+                if collision_k[collision_idx] > K_MAX:
+                    arrival_queues[collision_idx].popleft()
                     sensing_k[collision_idx] = 0
                     collision_k[collision_idx] = 0
                     dropped_packets += 1
-                     # if the next node in the queue arrives before current time, adjust it
-                    if len(arrival_queues[collision_idx]) and arrival_queues[collision_idx][0] < t_dropped:
-                        arrival_queues[collision_idx][0] = t_dropped
+                    transmit_attempts += 1
+                    t_prop = abs(sender_idx-collision_idx) * D / S
+                    t_last_bit_recv = t_first_bit_sent + t_prop + t_trans
+                    # correct next arrival time if it's invalid
+                    if len(arrival_queues[collision_idx]) and arrival_queues[collision_idx][0] < t_last_bit_recv:
+                        arrival_queues[collision_idx][0] = t_last_bit_recv
+                else:
+                    t_backoff = random.randint(1, 2**collision_k[collision_idx] - 1) * (512 / R)
+                    arrival_queues[collision_idx][0] += t_backoff
 
         else: # else transmit was successful!
             t_arrival = arrival_queues[sender_idx].popleft()
             sensing_k[i] = 0
             collision_k[i] = 0
             sent_packets += 1
-            # if the next node in the queue arrives before we're done transmitting, adjust it
+            # correct next arrival time if it's invalid
             if len(arrival_queues[sender_idx]) and arrival_queues[sender_idx][0] < t_arrival + t_trans:
                 arrival_queues[sender_idx][0] = t_arrival + t_trans
         
