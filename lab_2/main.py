@@ -30,6 +30,7 @@ def build_events(lam):
         events.append(time)
     return events
 
+# Find index of node that transmits first
 def get_first_event_idx(time_queues):
     node_idx = -1
     earliest_time = SIMULATION_TIME + 1
@@ -85,6 +86,8 @@ def simulate_csmacd(N, A, persistent):
 
                 # Case 1: node i arrival occurs before bus is sensed to be busy -> collision
                 if arrival_queues[i][0] <= t_first_bit_recv:
+                    if not collisions:
+                        collisions.append(sender_idx)
                     collisions.append(i)
                     transmit_attempts += 1
                         
@@ -104,7 +107,7 @@ def simulate_csmacd(N, A, persistent):
                         while len( arrival_queues[i]) and arrival_queues[i][0] < t_last_bit_recv:
                             sensing_k[i] += 1
                             if sensing_k[i] > K_MAX:
-                                # We've backed off too many times, drop this packet
+                                # We've backed off too many times, drop this packet and reset counters
                                 arrival_queues[i].popleft()
                                 sensing_k[i] = 0
                                 collision_k[i] = 0
@@ -123,19 +126,18 @@ def simulate_csmacd(N, A, persistent):
 
         # Handle collisions if they occured, 
         if collisions:
-            # don't forget to add the transmitting node!
-            collisions.append(sender_idx)
             for collision_idx in collisions:
                 collision_k[collision_idx] += 1
                 if collision_k[collision_idx] > K_MAX:
+                    # We've backed off too many times, drop this packet and reset counters
                     arrival_queues[collision_idx].popleft()
                     sensing_k[collision_idx] = 0
                     collision_k[collision_idx] = 0
                     dropped_packets += 1
                     transmit_attempts += 1
+                    # correct next arrival time if it's invalid
                     t_prop = abs(sender_idx-collision_idx) * D / S
                     t_last_bit_recv = t_first_bit_sent + t_prop + t_trans
-                    # correct next arrival time if it's invalid
                     if len(arrival_queues[collision_idx]) and arrival_queues[collision_idx][0] < t_last_bit_recv:
                         arrival_queues[collision_idx][0] = t_last_bit_recv
                 else:
@@ -143,13 +145,14 @@ def simulate_csmacd(N, A, persistent):
                     arrival_queues[collision_idx][0] += t_backoff
 
         else: # else transmit was successful!
-            t_arrival = arrival_queues[sender_idx].popleft()
+            arrival_queues[sender_idx].popleft()
             sensing_k[i] = 0
             collision_k[i] = 0
             sent_packets += 1
             # correct next arrival time if it's invalid
-            if len(arrival_queues[sender_idx]) and arrival_queues[sender_idx][0] < t_arrival + t_trans:
-                arrival_queues[sender_idx][0] = t_arrival + t_trans
+            t_last_bit_sent = t_first_bit_sent + t_trans
+            if len(arrival_queues[sender_idx]) and arrival_queues[sender_idx][0] < t_last_bit_sent:
+                arrival_queues[sender_idx][0] = t_last_bit_sent
         
       
     # Print results
